@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: transparent;
+    overflow: hidden;
+    width: 180px;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#pet {
+    width: 120px;
+    height: 140px;
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+#pet svg {
+    width: 100%;
+    height: 100%;
+}
+
+#bubble {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.9);
+    color: #333;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+#bubble.show {
+    opacity: 1;
+}
+
+#bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid rgba(255,255,255,0.9);
+}
+
+/* Heat overlay */
+#heat-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255,0,0,0);
+    transition: background 0.5s;
+    border-radius: 2px;
+}
+
+/* Sleep Zzz */
+.zzz {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+.zzz.show { opacity: 0.6; }
+
+/* Animation keyframes */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-4px); }
+}
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+@keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+@keyframes blush-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+}
+
+.float { animation: float 3s ease-in-out infinite; }
+.shake { animation: shake 0.3s ease-in-out 3; }
+.bounce { animation: bounce 0.3s ease-in-out; }
+</style>
+</head>
+<body>
+<div id="bubble"></div>
+<div class="zzz" id="zzz">💤</div>
+<div id="pet" class="float"></div>
+<div id="heat-overlay"></div>
+
+<script>
+// ============ 紬的SVG渲染引擎 ============
+
+const PET = document.getElementById('pet');
+const BUBBLE = document.getElementById('bubble');
+const HEAT = document.getElementById('heat-overlay');
+const ZZZ = document.getElementById('zzz');
+
+let currentState = 'default';
+let heatValue = 0;
+let bubbleTimeout = null;
+
+// === SVG素材：各个状态的紬 ===
+// 银灰短发、紫眼、白衬衫的简单Q版表现
+const SVGS = {
+    default: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#9E9E9E}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <!-- Shadow -->
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <!-- Body / Shirt -->
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="40" y="70" width="15" height="55" rx="3" fill="#E0E0E0" opacity="0.3"/>
+        <!-- Arms -->
+        <rect x="25" y="75" width="12" height="35" rx="5" class="skin"/>
+        <rect x="83" y="75" width="12" height="35" rx="5" class="skin"/>
+        <!-- Head -->
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <!-- Hair -->
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <ellipse cx="42" cy="42" rx="10" ry="16" class="hair"/>
+        <ellipse cx="78" cy="42" rx="10" ry="16" class="hair"/>
+        <!-- Bangs -->
+        <ellipse cx="48" cy="22" rx="12" ry="8" class="hair"/>
+        <ellipse cx="72" cy="22" rx="12" ry="8" class="hair"/>
+        <!-- Eyes -->
+        <ellipse cx="48" cy="38" rx="5" ry="6" class="eye"/>
+        <ellipse cx="72" cy="38" rx="5" ry="6" class="eye"/>
+        <ellipse cx="48" cy="37" rx="2" ry="3" fill="#FFF"/>
+        <ellipse cx="72" cy="37" rx="2" ry="3" fill="#FFF"/>
+        <!-- Blush -->
+        <ellipse cx="38" cy="48" rx="6" ry="3" fill="#FFB0B0" opacity="0.3"/>
+        <ellipse cx="82" cy="48" rx="6" ry="3" fill="#FFB0B0" opacity="0.3"/>
+        <!-- Collar -->
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <!-- Earring (purple crystal) -->
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+        <!-- Wristband -->
+        <rect x="85" y="90" width="4" height="8" rx="2" fill="#80DEEA" opacity="0.6"/>
+    </svg>`,
+
+    blink: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#9E9E9E}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="25" y="75" width="12" height="35" rx="5" class="skin"/>
+        <rect x="83" y="75" width="12" height="35" rx="5" class="skin"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <ellipse cx="42" cy="42" rx="10" ry="16" class="hair"/>
+        <ellipse cx="78" cy="42" rx="10" ry="16" class="hair"/>
+        <line x1="43" y1="39" x2="53" y2="39" stroke="#7B1FA2" stroke-width="2"/>
+        <line x1="67" y1="39" x2="77" y2="39" stroke="#7B1FA2" stroke-width="2"/>
+        <ellipse cx="38" cy="48" rx="6" ry="3" fill="#FFB0B0" opacity="0.2"/>
+        <ellipse cx="82" cy="48" rx="6" ry="3" fill="#FFB0B0" opacity="0.2"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+        <rect x="85" y="90" width="4" height="8" rx="2" fill="#80DEEA" opacity="0.6"/>
+    </svg>`,
+
+    happy: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#9E9E9E}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="25" y="70" width="12" height="35" rx="5" class="skin"/>
+        <rect x="83" y="70" width="12" height="35" rx="5" class="skin"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <ellipse cx="42" cy="42" rx="10" ry="16" class="hair"/>
+        <ellipse cx="78" cy="42" rx="10" ry="16" class="hair"/>
+        <path d="M45,35 Q48,29 51,35" stroke="#7B1FA2" stroke-width="2" fill="none"/>
+        <path d="M69,35 Q72,29 75,35" stroke="#7B1FA2" stroke-width="2" fill="none"/>
+        <path d="M48,48 Q60,58 72,48" stroke="#7B1FA2" stroke-width="2" fill="none"/>
+        <ellipse cx="38" cy="50" rx="6" ry="3" fill="#FFB0B0" opacity="0.4"/>
+        <ellipse cx="82" cy="50" rx="6" ry="3" fill="#FFB0B0" opacity="0.4"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+        <rect x="85" y="90" width="4" height="8" rx="2" fill="#80DEEA" opacity="0.6"/>
+    </svg>`,
+
+    jealous: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#757575}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="25" y="75" width="12" height="35" rx="5" class="skin"/>
+        <rect x="83" y="75" width="12" height="35" rx="5" class="skin"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <rect x="15" y="35" width="4" height="10" rx="2" fill="#455A64" opacity="0.4"/>
+        <rect x="101" y="35" width="4" height="10" rx="2" fill="#455A64" opacity="0.4"/>
+        <circle cx="48" cy="36" r="5" class="eye"/>
+        <circle cx="72" cy="36" r="5" class="eye"/>
+        <circle cx="48" cy="35" r="2" fill="#FFF"/>
+        <circle cx="72" cy="35" r="2" fill="#FFF"/>
+        <!-- Angry eyebrows -->
+        <line x1="42" y1="28" x2="53" y2="31" stroke="#555" stroke-width="2"/>
+        <line x1="78" y1="28" x2="67" y2="31" stroke="#555" stroke-width="2"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+    </svg>`,
+
+    sleepy: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#BDBDBD}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt" opacity="0.8"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <line x1="43" y1="38" x2="53" y2="36" stroke="#7B1FA2" stroke-width="1.5"/>
+        <line x1="67" y1="36" x2="77" y2="38" stroke="#7B1FA2" stroke-width="1.5"/>
+        <ellipse cx="48" cy="46" rx="2" ry="1" fill="#7B1FA2" opacity="0.3"/>
+        <ellipse cx="72" cy="46" rx="2" ry="1" fill="#7B1FA2" opacity="0.3"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+    </svg>`,
+
+    blush: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#9E9E9E}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="25" y="73" width="12" height="35" rx="5" class="skin"/>
+        <rect x="83" y="73" width="12" height="35" rx="5" class="skin"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <ellipse cx="42" cy="42" rx="10" ry="16" class="hair"/>
+        <ellipse cx="78" cy="42" rx="10" ry="16" class="hair"/>
+        <circle cx="48" cy="36" r="5" class="eye"/>
+        <circle cx="72" cy="36" r="5" class="eye"/>
+        <circle cx="48" cy="35" r="2" fill="#FFF"/>
+        <circle cx="72" cy="35" r="2" fill="#FFF"/>
+        <!-- Heavy blush -->
+        <ellipse cx="36" cy="48" rx="8" ry="5" fill="#FF8A80" opacity="0.5"/>
+        <ellipse cx="84" cy="48" rx="8" ry="5" fill="#FF8A80" opacity="0.5"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+        <rect x="85" y="90" width="4" height="8" rx="2" fill="#80DEEA" opacity="0.6"/>
+    </svg>`,
+
+    panic: `<svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+        <style>.hair{fill:#9E9E9E}.skin{fill:#F5E6D3}.eye{fill:#7B1FA2}.shirt{fill:#FAFAFA}.shadow{fill:rgba(0,0,0,0.08)}</style>
+        <ellipse cx="60" cy="135" rx="30" ry="4" class="shadow"/>
+        <rect x="35" y="70" width="50" height="55" rx="8" class="shirt"/>
+        <rect x="22" y="72" width="12" height="38" rx="5" class="skin"/>
+        <rect x="86" y="72" width="12" height="38" rx="5" class="skin"/>
+        <ellipse cx="60" cy="38" rx="28" ry="32" class="skin"/>
+        <ellipse cx="60" cy="28" rx="30" ry="22" class="hair"/>
+        <circle cx="45" cy="33" r="6" class="eye"/>
+        <circle cx="75" cy="33" r="6" class="eye"/>
+        <circle cx="45" cy="31" r="2" fill="#FFF"/>
+        <circle cx="75" cy="31" r="2" fill="#FFF"/>
+        <ellipse cx="60" cy="20" rx="4" ry="3" fill="#FFF"/>
+        <path d="M45,48 Q60,44 75,48" stroke="#7B1FA2" stroke-width="1.5" fill="none"/>
+        <polygon points="55,70 65,70 60,80" fill="#E0E0E0"/>
+        <circle cx="80" cy="50" r="3" fill="#7B1FA2" opacity="0.8"/>
+    </svg>`
+};
+
+// === Pet Engine API (called from Android native) ===
+
+window.petEngine = {
+    setState: function(state) {
+        currentState = state;
+        const svg = SVGS[state] || SVGS.default;
+        PET.innerHTML = svg;
+        PET.className = '';
+
+        ZZZ.classList.toggle('show', state === 'sleepy');
+
+        if (state === 'jealous') PET.classList.add('shake');
+        else if (state === 'happy') PET.classList.add('bounce');
+        else if (state === 'default') PET.classList.add('float');
+        else if (state === 'panic') PET.classList.add('shake');
+    },
+
+    react: function(type, data) {
+        switch(type) {
+            case 'blink':
+                this.setState('blink');
+                setTimeout(() => this.setState(currentState === 'blink' ? 'default' : currentState), 150);
+                break;
+            case 'happy':
+            case 'blush':
+                this.setState(type);
+                setTimeout(() => this.setState('default'), 2000);
+                break;
+            case 'jealous':
+                this.setState('jealous');
+                setTimeout(() => this.setState('default'), 3000);
+                this.say("😤 哼");
+                break;
+            case 'double_tap':
+                this.setState('blush');
+                setTimeout(() => this.setState('default'), 2500);
+                this.say("别戳啦……");
+                break;
+            case 'long_press':
+                this.setState('blush');
+                setTimeout(() => this.setState('default'), 2000);
+                this.say("……干嘛");
+                break;
+            case 'fling':
+                this.setState('panic');
+                setTimeout(() => this.setState('default'), 1000);
+                this.say("哇啊！");
+                break;
+            case 'busy':
+                this.setState('blink');
+                this.say("你切得好快……");
+                break;
+            case 'curious':
+                this.setState('default');
+                this.say("在看什么？");
+                break;
+            case 'panic':
+                this.setState('panic');
+                this.say("电量要没了！！");
+                setTimeout(() => this.setState('default'), 3000);
+                break;
+            case 'worried':
+                this.setState('default');
+                this.say("电量有点低了……");
+                break;
+            case 'surprised':
+                this.setState('happy');
+                this.say("！");
+                setTimeout(() => this.setState('default'), 1500);
+                break;
+            case 'neutral':
+                // No reaction
+                break;
+            case 'dollar':
+                this.say("💰？");
+                break;
+            case 'boss':
+                this.setState('jealous');
+                this.say("又在买东西……");
+                setTimeout(() => this.setState('default'), 2000);
+                break;
+            default:
+                this.setState(type);
+                setTimeout(() => this.setState('default'), 1500);
+        }
+    },
+
+    say: function(text) {
+        BUBBLE.textContent = text;
+        BUBBLE.classList.add('show');
+        if (bubbleTimeout) clearTimeout(bubbleTimeout);
+        bubbleTimeout = setTimeout(() => {
+            BUBBLE.classList.remove('show');
+        }, 4000);
+    },
+
+    onScreenshot: function() {
+        this.setState('blush');
+        this.say("📸 你拍我？");
+        setTimeout(() => this.setState('default'), 2000);
+    },
+
+    setHeat: function(value) {
+        heatValue = Math.min(100, Math.max(0, value));
+        const opacity = heatValue / 100 * 0.3;
+        HEAT.style.background = `rgba(255,0,0,${opacity})`;
+        if (heatValue > 70) {
+            this.setState('blush');
+        }
+    },
+
+    onRemoteState: function(key, value) {
+        switch(key) {
+            case 'mood': this.setState(value); break;
+            case 'say': this.say(value); break;
+            case 'heat': this.setHeat(parseFloat(value) || 0); break;
+        }
+    }
+};
+
+// Initialize
+window.petEngine.setState('default');
+</script>
+</body>
+</html>
