@@ -1,0 +1,7 @@
+{
+  "note": "Tidefall情绪面板配置",
+  "supabase_url": "请替换为你的Supabase Project URL",
+  "supabase_key": "请替换为你的Supabase anon public key",
+  "assistant_id": "tsumugi",
+  "status": "等待Supabase凭证"
+}
