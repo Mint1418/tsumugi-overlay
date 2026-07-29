@@ -16,6 +16,8 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Decode keystore
         run: |
@@ -25,6 +27,9 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease
+                - name: Install build tools
+                  run: |
+          sdkmanager "build-tools;34.0.0"
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
