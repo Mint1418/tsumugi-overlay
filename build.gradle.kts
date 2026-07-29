@@ -1,1 +1,8 @@
-cGx1Z2lucyB7CiAgICBpZCgiY29tLmFuZHJvaWQuYXBwbGljYXRpb24iKSB2ZXJzaW9uICI4LjIuMCIgYXBwbHkgZmFsc2UKICAgIGlkKCJvcmcuamV0YnJhaW5zLmtvdGxpbi5hbmRyb2lkIikgdmVyc2lvbiAiMS45LjIwIiBhcHBseSBmYWxzZQp9CnRhc2tzLnJlZ2lzdGVyKCJjbGVhbiIpIHsKICAgIGRlbGV0ZShsYXlvdXQpCn0K
+plugins {
+    id("com.android.application") version "8.2.0" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.20" apply false
+}
+
+tasks.register("clean") {
+    delete(layout.buildDirectory)
+}
