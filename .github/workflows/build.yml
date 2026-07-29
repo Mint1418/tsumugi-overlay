@@ -34,21 +34,21 @@ jobs:
           ./gradlew assembleRelease
 
       - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
-
-      - name: Check APK
         run: |
-          echo "寻找APK文件..."
-          find app/build/outputs -name "*.apk"
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+          --ks tsumugi.jks \
+          --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+          --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+          --key-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+          --out app-release-signed.apk \
+          app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Verify APK
+        run: |
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify app-release-signed.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tsumugi-signed-apk
-          path: app/build/outputs/**/*.apk
+          path: app-release-signed.apk
