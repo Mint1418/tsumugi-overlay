@@ -22,7 +22,7 @@ jobs:
 
       - name: Install build tools
         run: |
-          sdkmanager "build-tools;34.0.0"
+          sdkmanager "build-tools;29.0.3"
 
       - name: Decode keystore
         run: |
