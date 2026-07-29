@@ -20,9 +20,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install build tools
+      - name: Install Build Tools
         run: |
-          sdkmanager "build-tools;29.0.3"
+          sdkmanager "build-tools;34.0.0"
 
       - name: Decode keystore
         run: |
@@ -42,8 +42,13 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
 
+      - name: Check APK
+        run: |
+          echo "寻找APK文件..."
+          find app/build/outputs -name "*.apk"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: tsumugi-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: tsumugi-signed-apk
+          path: app/build/outputs/**/*.apk
