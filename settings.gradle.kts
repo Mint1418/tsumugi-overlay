@@ -1,1 +1,19 @@
-cGx1Z2luTWFuYWdlbWVudCB7CiAgICByZXBvc2l0b3JpZXMgewogICAgICAgIGdvb2dsZSgpCiAgICAgICAgbWF2ZW5DZW50cmFsKCkKICAgICAgICBncmFkbGVQbHVnaW5Qb3J0YWwoKQogICAgfQp9Cgpyb290UHJvamVjdC5uYW1lID0gIkFJLExpdmVPdmVyZmxvdyIKaW5jbHVkZSgiOmFwcCIpCg==
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "tsumugi-overlay"
+
+include(":app")
