@@ -42,7 +42,6 @@
         android:text="开启紬"
         android:textSize="16sp"
         android:backgroundTint="@color/primary"
-        android:textColor="@color/on_primary"
-        app:cornerRadius="24dp" />
+        android:textColor="@color/on_primary"/>
 
 </LinearLayout>
